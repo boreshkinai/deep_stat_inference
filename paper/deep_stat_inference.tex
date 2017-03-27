@@ -1,0 +1,47 @@
+\documentclass[]{article}
+
+\usepackage{mathtools,bm,amsfonts,amssymb,lmodern}
+
+\renewcommand{\vec}[1]{\mathbf{#1}}
+
+%opening
+\title{Deep statistical inference}
+\author{B.N. Oreshkin and M.J. Coates}
+
+
+
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+
+\end{abstract}
+
+\section{Problem Statement}
+
+Common problems in statistics include those of location testing and statistical dependency discovery. These problems are typically solved within the framework of statistical hypothesis testing. A wide variety of statistical tests are known. The strictness of the modeling assumptions used during its design defines how wide the range of settings is where test performance is optimal or close to optimal. There is typically a trade-off between how stable test performance is under varying application conditions and how good the performance of the test is under its optimal application conditions. This looks like a fundamental trade-off: optimal test performance is usually reciprocal to the number of settings where test performance remains reasonable. Another problem is that of test selection. Selecting the best test for a given dataset requires experience, detailed knowledge of underlying data generating system, costly data exploration, trial and error test selection reducing scientific validity of testing results, or all of the above at the same time. 
+
+The goal of this work is to investigate the feasibility of transferring the human knowledge accumulated in the field of statistics to date into a deep neural network architecture. Our ambition is to design a test based on a machine learning approach that will perform equally well under a very wide set of application conditions and surpass the performance of currently available statistical tests designed under loosened modeling assumptions.
+
+\subsection{Location testing problem}
+
+Suppose we observe two vectors: $\vec{x}$ and $\vec{y}$. The first observed vector $\vec{x} = [x_1, \ldots, x_N]^T$ contains independent components sampled from an arbitrary continuous distribution, $x_i \sim p_X(\cdot)$. Unobserved vector $\vec{\bm \xi} = [\xi_1, \ldots, \xi_N]^T$ is independent of $\vec{x}$. Its independent components are sampled from the same distribution, $\xi_i \sim p_X(\cdot)$. The second observed vector $\vec{y} = [y_1, \ldots, y_N]^T$ equals $\vec{\bm \xi}$ under hypothesis $H_0$ and is shifted by mean $\mu$ under alternative hypothesis:
+\begin{align*}
+H_0 &: y_i = \xi_i \\
+H_1 &: y_i = \mu + \xi_i
+\end{align*}
+We would like to solve the problem of developing a universal non-asymptotic statistical test capable of differentiating between the two hypotheses under arbitrary continuous $p_X(\cdot)$. Given two samples $\vec{x}$ and $\vec{y}$ the test is supposed to output a p-value that could be used to reject the null hypothesis at a given level of statistical confidence.
+
+\subsection{Signal discovery/correlation analysis problem}
+
+Suppose, as previously, we observe two vectors: $\vec{x}$ and $\vec{y}$. The first observed vector is sampled from an arbitrary continuous joint distribution, $\vec{x} \sim p_\vec{X}(\cdot)$. Unobserved vector $\vec{\bm \xi} = [\xi_1, \ldots, \xi_N]^T$ is independent of $\vec{x}$. Its independent components are sampled from distribution, $\xi_i \sim p_{\xi}(\cdot)$. The second observed vector $\vec{y} = [y_1, \ldots, y_N]^T$ equals $\vec{\bm \xi}$ under hypothesis $H_0$. Under hypothesis $H_1$ it is functionally related to  $\vec{x}$ and $\vec{\bm \xi}$:
+\begin{align*}
+H_0 &: y_i = \xi_i \\
+H_1 &: y_i = f(x_i, \xi_i)
+\end{align*}
+We would like to solve the problem of developing a universal non-asymptotic statistical test capable of differentiating between the two hypotheses under arbitrary continuous $p_X(\cdot)$ and $p_{\xi}(\cdot)$. The application of this test is the discovery of statistical links between two variables. Given two samples $\vec{x}$ and $\vec{y}$ the test is supposed to output a p-value that could be used to reject the null hypothesis at a given level of statistical confidence.
+
+
+\end{document}
