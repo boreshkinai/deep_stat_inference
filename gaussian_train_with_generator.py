@@ -1,8 +1,11 @@
+from idlelib.idle_test.test_calltips import signature
+
 import numpy as np
 import numpy.random as nprnd
 import scipy.stats as stats
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
+from scipy.stats import ttest_ind
 
 from keras.layers import Input, merge
 from keras.models import Sequential, Model
@@ -26,38 +29,42 @@ def one_hot_encode_object_array(arr):
 
 
 def myGenerator():
-    sigma = 10.0 * nprnd.rand()
-    print("\nTraining sigma=" + str(sigma))
-
-    Z1 = nprnd.normal(0, sigma, (N, M))
-    Z2 = nprnd.normal(0, sigma, (N, M))
-
-    # H0 model parameter estimation under H0:
-    muH0 = np.mean(np.concatenate([Z1, Z2], axis=0), axis=0)
-    sigmaH0 = np.sqrt(np.var(np.concatenate([Z1, Z2], axis=0), axis=0))
-    # H1 model parameter estimation under H0:
-    muZ1H1 = np.mean(Z1, axis=0)
-    muZ2H1 = np.mean(Z2, axis=0)
-    sigmaZ1H1 = np.sqrt(np.var(Z1, axis=0))
-    sigmaZ2H1 = np.sqrt(np.var(Z2, axis=0))
-
-    TZ = np.sum(
-        stats.norm.logpdf(Z1, loc=muZ1H1, scale=sigmaZ1H1) + stats.norm.logpdf(Z2, loc=muZ2H1, scale=sigmaZ2H1)
-        - stats.norm.logpdf(Z1, loc=muH0, scale=sigmaH0) - stats.norm.logpdf(Z2, loc=muH0, scale=sigmaH0), axis=0)
-    percentileH0 = np.percentile(TZ, PERCENTILE_RANGE)
-    ecdfH0 = interp1d(percentileH0, PERCENTILE_RANGE, fill_value=(0.0, 100.0), bounds_error=False)
-    p1 = np.sum(ecdfH0(TZ) <= 5) / M
-
     while 1:
+        sigma = 10.0 * nprnd.rand()
+        print("\nTraining sigma=" + str(sigma))
 
+
+        '''
+        Z1 = nprnd.normal(0, sigma, (N, M))
+        Z2 = nprnd.normal(0, sigma, (N, M))
+
+        # H0 model parameter estimation under H0:
+        muH0 = np.mean(np.concatenate([Z1, Z2], axis=0), axis=0)
+        sigmaH0 = np.sqrt(np.var(np.concatenate([Z1, Z2], axis=0), axis=0))
+        # H1 model parameter estimation under H0:
+        muZ1H1 = np.mean(Z1, axis=0)
+        muZ2H1 = np.mean(Z2, axis=0)
+        sigmaZ1H1 = np.sqrt(np.var(Z1, axis=0))
+        sigmaZ2H1 = np.sqrt(np.var(Z2, axis=0))
+
+        TZ = np.sum(
+            stats.norm.logpdf(Z1, loc=muZ1H1, scale=sigmaZ1H1) + stats.norm.logpdf(Z2, loc=muZ2H1, scale=sigmaZ2H1)
+            - stats.norm.logpdf(Z1, loc=muH0, scale=sigmaH0) - stats.norm.logpdf(Z2, loc=muH0, scale=sigmaH0), axis=0)
+        percentileH0 = np.percentile(TZ, PERCENTILE_RANGE)
+        ecdfH0 = interp1d(percentileH0, PERCENTILE_RANGE, fill_value=(0.0, 100.0), bounds_error=False)
+        p1 = np.sum(ecdfH0(TZ) <= 5) / M
+
+        '''
         # for mu in mu_vec:
         #    print("\nTraining mu=" + str(mu))
         h_vec = (nprnd.rand(1, M) > 0.5)
-        mu_vec = 1 * sigma * nprnd.rand(1, M) * h_vec
+        sign_vec = 2 * (nprnd.rand(1, M) > 0.5) - 1
+        mu_vec = 1 * sigma * nprnd.rand(1, M) * h_vec * sign_vec
 
         X = nprnd.normal(0, sigma, (N, M))
         Y = nprnd.normal(0, sigma, (N, M)) + mu_vec
 
+        '''
         # H0 model parameter estimation under H0:
         muXYH0 = np.mean(np.concatenate([X, Y], axis=0), axis=0)
         sigmaXYH0 = np.sqrt(np.var(np.concatenate([X, Y], axis=0), axis=0))
@@ -72,12 +79,16 @@ def myGenerator():
             stats.norm.logpdf(X, loc=muXYH0, scale=sigmaXYH0) - stats.norm.logpdf(Y, loc=muXYH0, scale=sigmaXYH0),
             axis=0)
         pValues = 100 - ecdfH0(TXY)
-        pValues = pValues.reshape((pValues.shape[0],1))
+        '''
+
+        test_stat, pValues = ttest_ind(X, Y, axis=0)
+        pValues = 100*pValues
+        pValues = pValues.reshape((pValues.shape[0], 1))
 
         Xtrain = np.concatenate((X.transpose(), Y.transpose()), axis=1)
-        Xtrain -= Xtrain.min(axis=1).reshape((Xtrain.shape[0],1))
-        Xtrain /= Xtrain.max(axis=1).reshape((Xtrain.shape[0],1))
-        yield (Xtrain, {'main_output': pValues, 'hypothesis': h_vec.transpose() } )
+        Xtrain -= Xtrain.min(axis=1).reshape((Xtrain.shape[0], 1))
+        Xtrain /= Xtrain.max(axis=1).reshape((Xtrain.shape[0], 1))
+        yield ({'main_input': Xtrain}, {'main_output': pValues, 'hypothesis': h_vec.transpose(), 'X': X, 'Y': Y } )
 
 
 def get_nn_model(input_size):
@@ -125,7 +136,7 @@ plt.plot(X[1]['main_output'])
 plt.plot(yPred)
 plt.show()
 
-TH = 20
+TH = 5
 THnn = 30
 power_ttest = np.sum( np.multiply(X[1]['main_output'] < TH, X[1]['hypothesis'] == 1) ) / np.sum( X[1]['hypothesis'])
 power_nntest = np.sum( np.multiply(yPred < THnn, X[1]['hypothesis'] == 1) ) / np.sum( X[1]['hypothesis'])
@@ -133,7 +144,13 @@ power_nntest = np.sum( np.multiply(yPred < THnn, X[1]['hypothesis'] == 1) ) / np
 fa_ttest = np.sum( np.multiply(X[1]['main_output'] < TH, X[1]['hypothesis'] == 0) ) / np.sum( X[1]['hypothesis'] == 0)
 fa_nntest = np.sum( np.multiply(yPred < THnn, X[1]['hypothesis'] == 0) ) / np.sum( X[1]['hypothesis'] == 0)
 
+test_stat, pval_ttest_theory = ttest_ind(X[1]['X'], X[1]['Y'], axis=0)
+pval_ttest_theory = 100*pval_ttest_theory.reshape((pval_ttest_theory.shape[0],1))
+power_ttest_theory = np.sum( np.multiply(pval_ttest_theory < TH, X[1]['hypothesis'] == 1) ) / np.sum( X[1]['hypothesis'])
+fa_ttest_theory = np.sum( np.multiply(pval_ttest_theory < TH, X[1]['hypothesis'] == 0) ) / np.sum( X[1]['hypothesis'] == 0)
+
 print('Power ttest: ', power_ttest)
 print('Power NN-test: ', power_nntest)
 print('False alarm ttest: ', fa_ttest)
 print('False alarm NN-test: ', fa_nntest)
+
