@@ -24,7 +24,7 @@ import random
 import sys
 import re
 
-EXAMPLES_PER_SENTENCE = 2
+EXAMPLES_PER_SENTENCE = 10
 SENTENCE_BATCH_SIZE = 8
 LSTM_WIDTH = 256
 SENTENCE_START = '#'
@@ -71,32 +71,34 @@ def split_into_sentences(text):
             out.append(SENTENCE_START+s)
     return out
 
-path = get_file('nietzsche.txt', origin='https://s3.amazonaws.com/text-datasets/nietzsche.txt')
-text = open(path).read()
+#path = get_file('nietzsche.txt', origin='https://s3.amazonaws.com/text-datasets/nietzsche.txt')
+#text = open(path).read()
 
-#text = "The basic idea—that software can simulate the neocortex’s large array of neurons in an artificial “neural network”—is decades old, and it has led to as many disappointments as breakthroughs. But because of improvements in mathematical formulas and increasingly powerful computers, computer scientists can now model many more layers of virtual neurons than ever before. With this greater depth, they are producing remarkable advances in speech and image recognition. Last June, a Google deep-learning system that had been shown 10 million images from YouTube videos proved almost twice as good as any previous image recognition effort at identifying objects such as cats. Google also used the technology to cut the error rate on speech recognition in its latest Android mobile software. In October, Microsoft chief research officer Rick Rashid wowed attendees at a lecture in China with a demonstration of speech software that transcribed his spoken words into English text with an error rate of 7 percent, translated them into Chinese-language text, and then simulated his own voice uttering them in Mandarin. That same month, a team of three graduate students and two professors won a contest held by Merck to identify molecules that could lead to new drugs. The group used deep learning to zero in on the molecules most likely to bind to their targets. Google in particular has become a magnet for deep learning and related AI talent. In March the company bought a startup cofounded by Geoffrey Hinton, a University of Toronto computer science professor who was part of the team that won the Merck contest. Hinton, who will split his time between the university and Google, says he plans to “take ideas out of this field and apply them to real problems” such as image recognition, search, and natural-language understanding, he says."
-text = text.lower().replace('\n', ' ').replace('=', ' ').replace(r"\\'", " ")
-print('corpus length:', len(text))
+
+path_shakespeare = get_file('shakespeare.txt', origin='http://norvig.com/ngrams/shakespeare.txt')
+text_shakespeare = open(path_shakespeare).read()
+text_shakespeare = text_shakespeare.lower().replace('\n', ' ').replace('=', ' ').replace(r"\\'", " ")
+print('corpus length:', len(text_shakespeare))
 
 # nltk.download()
 #tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
 #tokenized = tokenizer.tokenize(text)
 
-sentences = np.array(split_into_sentences(text))
-sentences = sorted(sentences, key=len)
-chars = sorted(list(set("".join(sentences))))
+sentences_shakespeare = np.array(split_into_sentences(text_shakespeare))
+sentences_shakespeare = sorted(sentences_shakespeare, key=len)
+chars = sorted(list(set("".join(sentences_shakespeare))))
 
 #chars = sorted(list(set(text)))
 print('total chars:', len(chars))
 char_indices = dict((c, i) for i, c in enumerate(chars))
 indices_char = dict((i, c) for i, c in enumerate(chars))
 
-def text_generator():
+def text_generator(sentences):
 
 
-
+    '''
     batches = []
-    for i in range(0, len(sentences), SENTENCE_BATCH_SIZE): # len(sentences)
+    for i in range(0, 512, SENTENCE_BATCH_SIZE): # len(sentences)
         # print('Preparing batch: ', i)
         sentence_batch = sentences[i:i + SENTENCE_BATCH_SIZE]
         maxlen_batch = len(max(sentence_batch, key=len))
@@ -120,6 +122,7 @@ def text_generator():
             x[EXAMPLES_PER_SENTENCE * i, 0, char_indices[sentence[0]]] = 1
             y[EXAMPLES_PER_SENTENCE * i, :] = 0
             y[EXAMPLES_PER_SENTENCE * i, char_indices[sentence[1]]] = 1
+
             # This is to learn predicting the last symbol in the sequence
             x[EXAMPLES_PER_SENTENCE * i + EXAMPLES_PER_SENTENCE-1, :, :] = 0
             x[EXAMPLES_PER_SENTENCE * i + EXAMPLES_PER_SENTENCE-1, 0:len(sentence)-1, :] = X[EXAMPLES_PER_SENTENCE*i, 0:len(sentence)-1, :]
@@ -127,6 +130,7 @@ def text_generator():
             y[EXAMPLES_PER_SENTENCE * i + EXAMPLES_PER_SENTENCE-1, char_indices[sentence[-1]]] = 1
 
         batches.append(([X, x], y))
+
 
     cum_count=0
     while 1:
@@ -136,35 +140,50 @@ def text_generator():
             print('batch number: ', count, ', cumulative batch number: ', cum_count)
             count += 1
             yield batch
+    '''
+
+    cum_count=0
+    while 1:
+        count=0
+        cum_count += 1
+        for i in range(0, len(sentences), SENTENCE_BATCH_SIZE): # len(sentences)
+            print('batch number: ', count, ', cumulative batch number: ', cum_count)
+            count += 1
+
+            sentence_batch = sentences[i:i + SENTENCE_BATCH_SIZE]
+            maxlen_batch = len(max(sentence_batch, key=len))
+
+            X = np.zeros((EXAMPLES_PER_SENTENCE*SENTENCE_BATCH_SIZE, maxlen_batch, len(chars)), dtype=np.int32)
+            x = np.zeros((EXAMPLES_PER_SENTENCE*SENTENCE_BATCH_SIZE, maxlen_batch, len(chars)), dtype=np.int32)
+            y = np.zeros((EXAMPLES_PER_SENTENCE*SENTENCE_BATCH_SIZE, len(chars)), dtype=np.int32)
+
+            for i, sentence in enumerate(sentence_batch):
+
+                for t, char in enumerate(sentence):
+                    X[EXAMPLES_PER_SENTENCE*i:EXAMPLES_PER_SENTENCE*(i+1), t, char_indices[char]] = 1
+
+                example_positions = np.random.randint(0, len(sentence)-2, EXAMPLES_PER_SENTENCE)
+                for t in range(EXAMPLES_PER_SENTENCE):
+                    taget_pos = example_positions[t]+1
+                    x[EXAMPLES_PER_SENTENCE*i+t, 0:taget_pos, :] = X[EXAMPLES_PER_SENTENCE*i, 0:taget_pos, :]
+                    y[EXAMPLES_PER_SENTENCE*i+t, char_indices[sentence[taget_pos]]] = 1
+                # This is to learn predicting the first symbol in the sequence
+                x[EXAMPLES_PER_SENTENCE * i, :, :] = 0
+                x[EXAMPLES_PER_SENTENCE * i, 0, char_indices[sentence[0]]] = 1
+                y[EXAMPLES_PER_SENTENCE * i, :] = 0
+                y[EXAMPLES_PER_SENTENCE * i, char_indices[sentence[1]]] = 1
+
+                # This is to learn predicting the last symbol in the sequence
+                x[EXAMPLES_PER_SENTENCE * i + EXAMPLES_PER_SENTENCE-1, :, :] = 0
+                x[EXAMPLES_PER_SENTENCE * i + EXAMPLES_PER_SENTENCE-1, 0:len(sentence)-1, :] = X[EXAMPLES_PER_SENTENCE*i, 0:len(sentence)-1, :]
+                y[EXAMPLES_PER_SENTENCE * i + EXAMPLES_PER_SENTENCE-1, :] = 0
+                y[EXAMPLES_PER_SENTENCE * i + EXAMPLES_PER_SENTENCE-1, char_indices[sentence[-1]]] = 1
+
+            yield ([X, x], y)
 
 
 
-## cut the text in semi-redundant sequences of maxlen characters
-#maxlen = 40
-#step = 3
-#sentences = []
-#next_chars = []
-#for i in range(0, len(text) - maxlen, step):
-#    sentences.append(text[i: i + maxlen])
-#    next_chars.append(text[i + maxlen])
-#print('nb sequences:', len(sentences))
-
-#print('Vectorization...')
-#X = np.zeros((len(sentences), maxlen, len(chars)), dtype=np.bool)
-#y = np.zeros((len(sentences), len(chars)), dtype=np.bool)
-#for i, sentence in enumerate(sentences):
-#    for t, char in enumerate(sentence):
-#        X[i, t, char_indices[char]] = 1
-#    y[i, char_indices[next_chars[i]]] = 1
-
-
-# build the model: a single LSTM
 print('Build model...')
-#model = Sequential()
-#model.add(LSTM(128, input_shape=(maxlen, len(chars)))) # return_sequences
-#model.add(Dense(len(chars)))
-#model.add(Activation('softmax'))
-
 
 
 def concat_context(inputs):
@@ -175,6 +194,8 @@ def concat_context(inputs):
 
     boolean_mask = K.any(K.not_equal(seq, 0), axis=-1, keepdims=True)
 
+    # K.print_tensor( out * K.cast(boolean_mask, K.floatx()) )
+
     return out * K.cast(boolean_mask, K.floatx())
 
 
@@ -183,27 +204,24 @@ def concat_context(inputs):
 
 context_input = Input(shape=(None, len(chars)))
 x = Masking(mask_value=0)(context_input)
-x = LSTM(LSTM_WIDTH, return_sequences=True, go_backwards=True, dropout=0.0)(x)
-x = LSTM(LSTM_WIDTH, return_sequences=True, dropout=0.0)(x)
-encoder_output = LSTM(LSTM_WIDTH, return_sequences=False, dropout=0.0)(x)
+x = GRU(LSTM_WIDTH, return_sequences=True, go_backwards=True, dropout=0.0)(x)
+#xf = GRU(LSTM_WIDTH, return_sequences=True, go_backwards=False, dropout=0.0)(x)
+#x = Concatenate(axis=2)([xf, xb])
+x = GRU(LSTM_WIDTH, return_sequences=True, dropout=0.0)(x)
+encoder_output = GRU(LSTM_WIDTH, return_sequences=False, dropout=0.0)(x)
 
 teacher_input = Input(shape=(None, len(chars)))
 decoder_input = Masking(mask_value=0)(teacher_input)
 
-context_layer = Lambda(concat_context) # , output_shape=get_output_shape_for_concat_context
+context_layer = Lambda(concat_context)
 decoder_input_c = context_layer([decoder_input, encoder_output])
 
-#encoder_output = Reshape((1, LSTM_WIDTH))(encoder_output)
-#decoder_input_c = Concatenate(axis=2)([decoder_input, encoder_output])
-
-y1 = LSTM(LSTM_WIDTH, return_sequences=True, dropout=0.0, )(decoder_input_c)
-y2 = LSTM(LSTM_WIDTH, return_sequences=True, dropout=0.0)(y1)
+y1 = GRU(LSTM_WIDTH, return_sequences=True, dropout=0.0)(decoder_input_c)
+y2 = GRU(LSTM_WIDTH, return_sequences=True, dropout=0.0)(y1)
 #y2 = Add()([y1, y2])
-y3 = LSTM(LSTM_WIDTH, return_sequences=False, dropout=0.0)(y2)
+y3 = GRU(LSTM_WIDTH, return_sequences=False, dropout=0.0)(y2)
 #y3 = Add()([y2[:,-1,:], y3])
 
-#y = Dense(LSTM_WIDTH, activation='relu')(encoder_output)
-#y = Dense(LSTM_WIDTH, activation='relu')(y)
 decoder_appended = Concatenate()([encoder_output, y3])
 decoder_appended = Dense(LSTM_WIDTH, activation='relu')(decoder_appended)
 
@@ -211,7 +229,7 @@ decoder_output = Dense(len(chars), activation='softmax')(decoder_appended)
 
 model = Model(inputs=[context_input, teacher_input], outputs=[decoder_output])
 
-optimizer = Adam(clipnorm=5.0)
+optimizer = Adam(clipnorm=1.0)
 model.compile(loss='categorical_crossentropy', optimizer=optimizer)
 
 
@@ -226,7 +244,7 @@ def sample(preds, temperature=1.0):
 
 # train the model, output generated text after each iteration
 
-baseline_gen = text_generator()
+shakespeare_gen = text_generator(sentences_shakespeare)
 
 for iteration in range(1, 100):
     print()
@@ -236,10 +254,10 @@ for iteration in range(1, 100):
     #          batch_size=512,
     #          nb_epoch=1)
 
-    model.fit_generator(baseline_gen, steps_per_epoch=2700/SENTENCE_BATCH_SIZE, epochs=1, verbose=1, workers=1)
+    model.fit_generator(shakespeare_gen, steps_per_epoch=len(sentences_shakespeare)/SENTENCE_BATCH_SIZE-10, epochs=1, verbose=1, workers=1)
 
 # Some simple test of model prediction performance
-test_set = baseline_gen.__next__()
+test_set = shakespeare_gen.__next__()
 prediction = model.predict_on_batch(test_set[0])
 for i in range(len(test_set[1])):
 
@@ -262,7 +280,7 @@ for i in range(len(test_set[1])):
 
 
 # Some simple test of model prediction performance
-test_set = baseline_gen.__next__()
+test_set = shakespeare_gen.__next__()
 prediction = model.predict_on_batch(test_set[0])
 for i in range(len(test_set[1])):
 
@@ -279,6 +297,31 @@ for i in range(len(test_set[1])):
     predicted_symbol = indices_char[np.argmax(prediction[i])]
     true_symbol = indices_char[np.argmax(test_set[1][i])]
     print('Sentence: ', sentence_decode)
-    print('Frag: ', frag_decode, ' Predicted symbol: \"%s\"' % (predicted_symbol),
+    print('Frag: ', frag_decode)
+    print(' Predicted symbol: \"%s\"' % (predicted_symbol),
+          ' True symbol: \"%s\"' % (true_symbol))
+
+
+
+# Some simple test of model prediction performance
+test_set = shakespeare_gen.__next__()
+prediction = model.predict_on_batch(test_set[0])
+for i in range(len(test_set[1])):
+
+    sentence = np.argmax(test_set[0][0][i], axis=1)
+    sentence_decode = ''
+    for t in range(len(sentence)):
+        sentence_decode += indices_char[sentence[t]]
+
+    frag = np.argmax(test_set[0][1][i], axis=1)
+    frag_decode = ''
+    for t in range(len(frag)):
+        frag_decode += indices_char[frag[t]]
+
+    predicted_symbol = indices_char[np.argmax(prediction[i])]
+    true_symbol = indices_char[np.argmax(test_set[1][i])]
+    print('Sentence: ', sentence_decode)
+    print('Frag: ', frag_decode)
+    print(' Predicted symbol: \"%s\"' % (predicted_symbol),
           ' True symbol: \"%s\"' % (true_symbol))
 
